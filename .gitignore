@@ -1,0 +1,12 @@
+problems/
+.build/
+__pycache__/
+example.*
+*.aux
+*.log
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+main.pdf

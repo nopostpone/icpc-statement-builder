@@ -1,0 +1,59 @@
+\newcommand{\ContestName}{2026年上海大学程序设计夏季赛}
+\newcommand{\ContestOrganizer}{上海大学出题组}
+\newcommand{\ContestDate}{2026 年 7 月 10 日}
+\newcommand{\ContestNotice}{若存在疑问请通过比赛页面答疑区提问，存在题面变更以官方通知为准}
+\newcommand{\ContestLeftLogo}{shu.png}
+\newcommand{\ContestRightLogo}{}
+
+\newcommand{\IfNonEmptyTF}[3]{%
+  \edef\StatementBuilderTempValue{#1}%
+  \if\relax\detokenize\expandafter{\StatementBuilderTempValue}\relax
+    #3%
+  \else
+    #2%
+  \fi
+}
+
+\newcommand{\ApplyContestPageStyle}{%
+  \pagestyle{fancy}
+  \fancyhf{}
+  \fancyhead[L]{\includegraphics[height=1.0cm]{\ContestLeftLogo}}%
+  \IfNonEmptyTF{\ContestRightLogo}{%
+    \fancyhead[R]{\includegraphics[height=1.0cm]{\ContestRightLogo}}%
+  }{}%
+  \fancyhead[C]{%
+    \rmfamily\fontseries{m}\selectfont
+    \normalsize
+    \centering \ContestName\\
+    \ContestOrganizer，\ContestDate
+  }%
+  \renewcommand{\headrulewidth}{.7pt}
+  \renewcommand{\footrulewidth}{.7pt}
+  \setlength{\headsep}{10pt}
+  \cfoot{\rmfamily\fontseries{m}\selectfont\normalsize Page \thepage\ of \pageref{LastPage}}%
+}
+
+\newcommand{\RenderContestTitlePage}[1]{%
+  \begin{titlepage}
+    \centering
+    {\Huge \sffamily \ContestName} \\[3em]
+    {\Large \sffamily \ContestOrganizer} \\[1em]
+    {\Large \ContestDate} \\[0.2em]
+
+    \vspace{1cm}
+    \begin{center}
+      \includegraphics[width=5cm]{\ContestLeftLogo}
+    \end{center}
+
+    \vspace{1cm}
+    \begin{center}
+      {\Large \sffamily \textbf{试题汇总}}
+    \end{center}
+
+    \vspace{1cm}
+    #1
+
+    \vfill
+    {\large \sffamily \centering \ContestNotice\par}
+  \end{titlepage}
+}
