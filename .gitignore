@@ -10,3 +10,5 @@ example.*
 *.fdb_latexmk
 *.synctex.gz
 main.pdf
+generated-problems.tex
+main.tex

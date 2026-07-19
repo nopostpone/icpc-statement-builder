@@ -9,6 +9,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 PROBLEMS_DIR = ROOT / "problems"
+STATEMENTS_DIR = ROOT / "statements"
+STATEMENTS_ORDER_TEX = STATEMENTS_DIR / "chinese" / "statements.tex"
 BUILD_DIR = ROOT / ".build"
 WRAPPERS_DIR = BUILD_DIR / "wrappers"
 ASSETS_DIR = BUILD_DIR / "assets"
@@ -20,6 +22,12 @@ MAIN_AUX = ROOT / "main.aux"
 
 TITLE_RE = re.compile(r"\\begin\{problem\}\{([^}]*)\}")
 LASTPAGE_RE = re.compile(r"\\newlabel\{LastPage\}\{\{\}\{(\d+)\}")
+IMPORT_RE = re.compile(
+    r"\\graphicspath\{\{\.\./\.\./problems/([^/]+)/statements/chinese/\}\}\s*"
+    r"\\def\\ProblemIndex\{([^}]*)\}\s*"
+    r"\\import\{\.\./\.\./problems/\1/statements/chinese/\}\{\./problem\.tex\}",
+    re.MULTILINE,
+)
 
 
 @dataclass(frozen=True)
@@ -35,11 +43,33 @@ class ProblemStatement:
 def require_problems_dir() -> None:
     if not PROBLEMS_DIR.is_dir():
         raise SystemExit(f"missing problems directory: {PROBLEMS_DIR}")
+    if not STATEMENTS_ORDER_TEX.is_file():
+        raise SystemExit(f"missing statements order file: {STATEMENTS_ORDER_TEX}")
+
+
+
+def problem_order_from_statements() -> list[tuple[str, str]]:
+    text = STATEMENTS_ORDER_TEX.read_text(encoding="utf-8")
+    matches = IMPORT_RE.findall(text)
+    if not matches:
+        raise ValueError(f"cannot parse problem order from: {STATEMENTS_ORDER_TEX}")
+    return [(slug, letter) for slug, letter in matches]
 
 
 
 def discover_problem_dirs() -> list[Path]:
-    return sorted(path for path in PROBLEMS_DIR.iterdir() if path.is_dir())
+    problem_dirs = {path.name: path for path in PROBLEMS_DIR.iterdir() if path.is_dir()}
+    ordered: list[Path] = []
+    missing: list[str] = []
+    for slug, _ in problem_order_from_statements():
+        problem_dir = problem_dirs.get(slug)
+        if problem_dir is None:
+            missing.append(slug)
+        else:
+            ordered.append(problem_dir)
+    if missing:
+        raise FileNotFoundError(f"missing problem directories referenced by statements order: {missing}")
+    return ordered
 
 
 
@@ -107,14 +137,15 @@ def make_wrapper(problem_dir: Path, statement_tex: Path) -> Path:
 
 def collect_problems() -> list[ProblemStatement]:
     problems: list[ProblemStatement] = []
-    for index, problem_dir in enumerate(discover_problem_dirs()):
+    order = problem_order_from_statements()
+    for problem_dir, (_, letter) in zip(discover_problem_dirs(), order):
         statement_tex = statement_path_for(problem_dir)
         wrapper_tex = make_wrapper(problem_dir, statement_tex)
         problems.append(
             ProblemStatement(
                 slug=problem_dir.name,
                 title=extract_title(statement_tex),
-                letter=problem_letter(index),
+                letter=letter,
                 statement_tex=statement_tex,
                 wrapper_tex=wrapper_tex,
             )
