@@ -7,7 +7,7 @@ Icpc Statement Builder 可以根据 polygon 打包出来的 contest package 中�
 1. 在根目录克隆本仓库：
 
 ```bash
-$ git clone https://github.com/nopostpone/icpc-statement-builder.git
+git clone https://github.com/nopostpone/icpc-statement-builder.git
 ```
 
 2. 把 polygon 打包出来的 contest package 解压，将 `problems/` 和 `statements/` 两个目录复制到根目录下。
