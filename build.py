@@ -13,11 +13,13 @@ BUILD_DIR = ROOT / ".build"
 WRAPPERS_DIR = BUILD_DIR / "wrappers"
 ASSETS_DIR = BUILD_DIR / "assets"
 GENERATED_PROBLEMS_TEX = ROOT / "generated-problems.tex"
+CONTEST_INFO_TEX = ROOT / "contest-info.tex"
 MAIN_TEX = ROOT / "main.tex"
 MAIN_PDF = ROOT / "main.pdf"
+MAIN_AUX = ROOT / "main.aux"
 
 TITLE_RE = re.compile(r"\\begin\{problem\}\{([^}]*)\}")
-WRAPPER_TEMPLATE = None
+LASTPAGE_RE = re.compile(r"\\newlabel\{LastPage\}\{\{\}\{(\d+)\}")
 
 
 @dataclass(frozen=True)
@@ -173,6 +175,33 @@ def write_generated_tex(problems: list[ProblemStatement]) -> None:
 
 
 
+def update_contest_info(problem_count: int, page_count: int) -> None:
+    content = CONTEST_INFO_TEX.read_text(encoding="utf-8")
+    content = re.sub(
+        r"\\newcommand\{\\ContestProblemCount\}\{\d+\}",
+        rf"\\newcommand{{\\ContestProblemCount}}{{{problem_count}}}",
+        content,
+    )
+    content = re.sub(
+        r"\\newcommand\{\\ContestPageCount\}\{\d+\}",
+        rf"\\newcommand{{\\ContestPageCount}}{{{page_count}}}",
+        content,
+    )
+    CONTEST_INFO_TEX.write_text(content, encoding="utf-8")
+
+
+
+def extract_page_count() -> int:
+    if not MAIN_AUX.is_file():
+        raise FileNotFoundError(f"missing aux file: {MAIN_AUX}")
+    text = MAIN_AUX.read_text(encoding="utf-8", errors="ignore")
+    match = LASTPAGE_RE.search(text)
+    if not match:
+        raise ValueError("cannot determine total page count from main.aux")
+    return int(match.group(1))
+
+
+
 def copy_assets_for_problem(problem: ProblemStatement) -> None:
     source_dir = problem.statement_tex.parent
     target_dir = ASSETS_DIR / problem.slug
@@ -217,7 +246,11 @@ def main() -> None:
     if not problems:
         raise SystemExit("no problem directories found under problems/")
     prepare_build_dir(problems)
+    update_contest_info(problem_count=len(problems), page_count=0)
     write_generated_tex(problems)
+    run_xelatex()
+    page_count = extract_page_count()
+    update_contest_info(problem_count=len(problems), page_count=page_count)
     run_xelatex()
     print(f"Built {MAIN_PDF}")
 

@@ -6,7 +6,8 @@
 
 1. 克隆本仓库。
 2. 把题库目录复制到项目根目录，目录名必须为 `problems/`。
-3. 运行：
+3. 把比赛 logo 放到 `pic/logo.png`。
+4. 运行：
 
 ```bash
 python build.py
@@ -23,6 +24,9 @@ python build.py
 - 当前版本默认只读取中文题面：`problems/<slug>/statements/chinese/problem.tex`
 - 题目顺序默认按题目目录名排序
 - 比赛信息写在 `contest-info.tex`
+- `\ContestProblemCount` 和 `\ContestPageCount` 由 `build.py` 自动回填，请不要手动维护
+- 封面 logo 大小默认由 `\ContestLogoWidth` 控制，可按需要手动调整
+- 封面 logo 不属于 `problems/`，统一使用项目资源路径：`pic/logo.png`
 - `main.tex` 作为主模板，尽量不需要手动修改
 
 ## 依赖
