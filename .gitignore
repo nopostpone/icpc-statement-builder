@@ -1,4 +1,6 @@
 problems/
+statements/
+
 .build/
 __pycache__/
 example.*
@@ -9,6 +11,7 @@ example.*
 *.fls
 *.fdb_latexmk
 *.synctex.gz
+
 main.pdf
 generated-problems.tex
 main.tex
