@@ -1,6 +1,10 @@
-# Icpc Statement Builder
+# ICPC Statement Builder
 
-Icpc Statement Builder 可以根据 polygon 打包出来的完整 contest package，自动组装成一整本 ICPC/CCPC 风格的**中文** PDF 题面。
+polygon 自带的 sty 文件对中文支持不佳，无法直接编译中文题面。
+
+ICPC Statement Builder 可以根据 polygon 打包出来的完整 contest package，自动组装成一整本 ICPC/CCPC 风格的**中文** PDF 题面。
+
+> 仍然有一些问题，比如对客制化内容支持不佳（大尺寸图片会超出去、样例中非常长的一行无法换行等），这些需要自己到题目的 tex 文件中改。
 
 ## 用法
 
@@ -12,17 +16,17 @@ git clone https://github.com/nopostpone/icpc-statement-builder.git
 
 2. 把 polygon 打包出来的 contest package 解压，并将整个文件夹复制到仓库根目录下。
 3. 把比赛 logo 放到 `pic/logo.png`。
-4. 如需修改比赛名称、日期、主办方或 logo 等配置，编辑 `contest-info.tex`。
+4. 根据你的比赛信息，编辑 `contest-info.tex`，修改比赛名称、日期、主办方等。
 5. 运行代码编译：
 
 ```bash
 python build.py <contest-package-folder>
 ```
 
-例如：
+例如，如果你的 contest package 名字是 `contest-123`，那么在根目录解压 `contest-123.zip` 后，运行：
 
 ```bash
-python build.py contest-59409
+python build.py contest-123
 ```
 
 该脚本会：
