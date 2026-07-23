@@ -8,9 +8,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-PROBLEMS_DIR = ROOT / "problems"
-STATEMENTS_DIR = ROOT / "statements"
-STATEMENTS_ORDER_TEX = STATEMENTS_DIR / "chinese" / "statements.tex"
 BUILD_DIR = ROOT / ".build"
 WRAPPERS_DIR = BUILD_DIR / "wrappers"
 ASSETS_DIR = BUILD_DIR / "assets"
@@ -40,28 +37,33 @@ class ProblemStatement:
 
 
 
-def require_problems_dir() -> None:
-    if not PROBLEMS_DIR.is_dir():
-        raise SystemExit(f"missing problems directory: {PROBLEMS_DIR}")
-    if not STATEMENTS_ORDER_TEX.is_file():
-        raise SystemExit(f"missing statements order file: {STATEMENTS_ORDER_TEX}")
+def contest_root_for(package_name: str) -> Path:
+    return ROOT / package_name
 
 
 
-def problem_order_from_statements() -> list[tuple[str, str]]:
-    text = STATEMENTS_ORDER_TEX.read_text(encoding="utf-8")
+def require_problems_dir(problems_dir: Path, statements_order_tex: Path) -> None:
+    if not problems_dir.is_dir():
+        raise SystemExit(f"missing problems directory: {problems_dir}")
+    if not statements_order_tex.is_file():
+        raise SystemExit(f"missing statements order file: {statements_order_tex}")
+
+
+
+def problem_order_from_statements(statements_order_tex: Path) -> list[tuple[str, str]]:
+    text = statements_order_tex.read_text(encoding="utf-8")
     matches = IMPORT_RE.findall(text)
     if not matches:
-        raise ValueError(f"cannot parse problem order from: {STATEMENTS_ORDER_TEX}")
+        raise ValueError(f"cannot parse problem order from: {statements_order_tex}")
     return [(slug, letter) for slug, letter in matches]
 
 
 
-def discover_problem_dirs() -> list[Path]:
-    problem_dirs = {path.name: path for path in PROBLEMS_DIR.iterdir() if path.is_dir()}
+def discover_problem_dirs(problems_dir: Path, order: list[tuple[str, str]]) -> list[Path]:
+    problem_dirs = {path.name: path for path in problems_dir.iterdir() if path.is_dir()}
     ordered: list[Path] = []
     missing: list[str] = []
-    for slug, _ in problem_order_from_statements():
+    for slug, _ in order:
         problem_dir = problem_dirs.get(slug)
         if problem_dir is None:
             missing.append(slug)
@@ -135,10 +137,10 @@ def make_wrapper(problem_dir: Path, statement_tex: Path) -> Path:
 
 
 
-def collect_problems() -> list[ProblemStatement]:
+def collect_problems(problems_dir: Path, statements_order_tex: Path) -> list[ProblemStatement]:
     problems: list[ProblemStatement] = []
-    order = problem_order_from_statements()
-    for problem_dir, (_, letter) in zip(discover_problem_dirs(), order):
+    order = problem_order_from_statements(statements_order_tex)
+    for problem_dir, (_, letter) in zip(discover_problem_dirs(problems_dir, order), order):
         statement_tex = statement_path_for(problem_dir)
         wrapper_tex = make_wrapper(problem_dir, statement_tex)
         problems.append(
@@ -255,7 +257,7 @@ def prepare_build_dir(problems: list[ProblemStatement]) -> None:
     ASSETS_DIR.mkdir(parents=True, exist_ok=True)
     for problem in problems:
         copy_assets_for_problem(problem)
-        make_wrapper(PROBLEMS_DIR / problem.slug, problem.statement_tex)
+        make_wrapper(problem.statement_tex.parent.parent.parent, problem.statement_tex)
 
 
 
@@ -271,11 +273,26 @@ def run_xelatex() -> None:
 
 
 
+def parse_package_name() -> str:
+    if len(sys.argv) != 2:
+        raise SystemExit(f"usage: python {Path(__file__).name} <contest-package-folder>")
+    return sys.argv[1]
+
+
+
 def main() -> None:
-    require_problems_dir()
-    problems = collect_problems()
+    package_name = parse_package_name()
+    contest_root = contest_root_for(package_name)
+    if not contest_root.is_dir():
+        raise SystemExit(f"missing contest package directory: {contest_root}")
+
+    problems_dir = contest_root / "problems"
+    statements_order_tex = contest_root / "statements" / "chinese" / "statements.tex"
+
+    require_problems_dir(problems_dir, statements_order_tex)
+    problems = collect_problems(problems_dir, statements_order_tex)
     if not problems:
-        raise SystemExit("no problem directories found under problems/")
+        raise SystemExit(f"no problem directories found under {problems_dir}")
     prepare_build_dir(problems)
     update_contest_info(problem_count=len(problems), page_count=0)
     write_generated_tex(problems)
