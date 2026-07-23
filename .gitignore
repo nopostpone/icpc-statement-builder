@@ -20,3 +20,6 @@ main.tex
 **.zip
 
 **/
+!pic/
+!styles/
+!styles/*.sty

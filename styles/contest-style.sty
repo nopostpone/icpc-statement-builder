@@ -1,0 +1,55 @@
+\ProvidesPackage{contest-style}
+
+\RequirePackage{graphicx}
+\RequirePackage{fancyhdr}
+
+\newcommand{\IfNonEmptyTF}[3]{%
+  \edef\StatementBuilderTempValue{#1}%
+  \if\relax\detokenize\expandafter{\StatementBuilderTempValue}\relax
+    #3%
+  \else
+    #2%
+  \fi
+}
+
+\newcommand{\ApplyContestPageStyle}{%
+  \pagestyle{fancy}
+  \fancyhf{}
+  \fancyhead[L]{\includegraphics[height=1.0cm]{\ContestLeftLogo}}%
+  \IfNonEmptyTF{\ContestRightLogo}{%
+    \fancyhead[R]{\includegraphics[height=1.0cm]{\ContestRightLogo}}%
+  }{}%
+  \fancyhead[C]{%
+    \rmfamily\fontseries{m}\selectfont
+    \normalsize
+    \centering \ContestName\\
+    \ContestOrganizer，\ContestDate
+  }%
+  \renewcommand{\headrulewidth}{.7pt}
+  \renewcommand{\footrulewidth}{.7pt}
+  \setlength{\headsep}{10pt}
+  \cfoot{\rmfamily\fontseries{m}\selectfont\normalsize Page \thepage\ of \pageref{LastPage}}%
+}
+
+\newcommand{\RenderContestTitlePage}[1]{%
+  \begin{titlepage}
+    \centering
+    {\Huge \sffamily \ContestName} \\[3em]
+    {\Large \sffamily \ContestOrganizer} \\[1em]
+    {\Large \ContestDate} \\[0.2em]
+
+    \vspace{0.6cm}
+    \begin{center}
+      \includegraphics[width=\ContestLogoWidth]{\ContestLeftLogo}
+    \end{center}
+
+    \vspace{0.4cm}
+    \begin{center}
+      {\Large \sffamily \textbf{试题汇总}}\\[0.1cm]
+      #1
+    \end{center}
+
+    \vfill
+    {\large \rmfamily \centering \ContestNotice\par}
+  \end{titlepage}
+}

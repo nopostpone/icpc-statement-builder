@@ -269,7 +269,13 @@ def run_xelatex() -> None:
         MAIN_TEX.name,
     ]
     for _ in range(2):
-        subprocess.run(command, cwd=ROOT, check=True)
+        subprocess.run(
+            command,
+            cwd=ROOT,
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+        )
 
 
 
