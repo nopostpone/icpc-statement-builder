@@ -17,24 +17,40 @@ git clone https://github.com/nopostpone/icpc-statement-builder.git
 2. 把 polygon 打包出来的 contest package 解压，并将整个文件夹复制到仓库根目录下。
 3. 把比赛 logo 放到 `pic/logo.png`。
 4. 根据你的比赛信息，编辑 `contest-info.tex`，修改比赛名称、日期、主办方等。
-5. 运行代码编译：
+5. 根据需要选择运行模式：
+
+本地 XeLaTeX 直接编译：
 
 ```bash
-python build.py <contest-package-folder>
+python build.py build <contest-package-folder>
 ```
 
-例如，如果你的 contest package 名字是 `contest-123`，那么在根目录解压 `contest-123.zip` 后，运行：
+导出一个目录，可以直接上传至 Overleaf 或其他在线 LaTeX 平台进行编译：
 
 ```bash
-python build.py contest-123
+python build.py overleaf <contest-package-folder>
 ```
+
+例如，如果你的 contest package 名字是 `contest-123`，我需要本地编译一个题面 pdf，那么在根目录解压 `contest-123.zip` 后：
+
+```bash
+python build.py build contest-123
+```
+
+如果还想要导出成一个目录上传到 Overleaf，运行：
+
+```bash
+python build.py overleaf contest-123
+```
+
 
 该脚本会：
 - 读取 `<contest-package-folder>/statements/chinese/statements.tex` 中的题目顺序与题号
 - 扫描 `<contest-package-folder>/problems/`
 - 读取每道题的 `problems/<slug>/statements/chinese/problem.tex`
 - 生成 `generated-problems.tex`
-- 调用 XeLaTeX 编译 `main.tex`
+- 在 `build` 模式下调用 XeLaTeX 编译 `main.tex`
+- 在 `overleaf` 模式下生成自包含的 Overleaf 导出目录
 
 ## 文件职责
 
@@ -58,7 +74,19 @@ python build.py contest-123
 
 ## 输出
 
-默认会在项目根目录生成：
+`build` 模式默认会在项目根目录生成：
 - `generated-problems.tex`
 - `main.pdf`
 - `.build/`（中间生成文件）
+
+`overleaf` 模式会额外生成：
+- `exports/<contest-package-folder>/overleaf/`（整理后的导出目录）
+
+Overleaf 导出目录中只包含编译所需文件，例如：
+- `main.tex`
+- `contest-info.tex`
+- `generated-problems.tex`
+- `styles/`
+- `pic/` 中实际被引用的 logo
+- `problems/<slug>/problem.tex`
+- `problems/<slug>/assets/`

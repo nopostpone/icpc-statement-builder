@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parent
 BUILD_DIR = ROOT / ".build"
 WRAPPERS_DIR = BUILD_DIR / "wrappers"
 ASSETS_DIR = BUILD_DIR / "assets"
+EXPORTS_DIR = ROOT / "exports"
 GENERATED_PROBLEMS_TEX = ROOT / "generated-problems.tex"
 CONTEST_INFO_TEX = ROOT / "contest-info.tex"
 MAIN_TEX = ROOT / "main.tex"
@@ -34,6 +35,12 @@ class ProblemStatement:
     letter: str
     statement_tex: Path
     wrapper_tex: Path
+
+
+@dataclass(frozen=True)
+class BuildContext:
+    contest_root: Path
+    problems: list[ProblemStatement]
 
 
 
@@ -208,6 +215,81 @@ def write_generated_tex(problems: list[ProblemStatement]) -> None:
 
 
 
+def copy_file(source: Path, destination: Path) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, destination)
+
+
+
+def copy_tree(source_dir: Path, destination_dir: Path) -> None:
+    if destination_dir.exists():
+        shutil.rmtree(destination_dir)
+    shutil.copytree(source_dir, destination_dir)
+
+
+
+def export_wrapper_content(problem: ProblemStatement) -> str:
+    problem_dir = Path("problems") / problem.slug
+    problem_part = "{" + to_posix(problem_dir) + "/}"
+    asset_part = "{" + to_posix(problem_dir / "assets") + "/}"
+    statement_path = problem_dir / "problem.tex"
+    return "\n".join(
+        [
+            r"\begingroup",
+            r"\makeatletter",
+            "\\def\\input@path{" + asset_part + problem_part + "}",
+            r"\makeatother",
+            "\\graphicspath{" + asset_part + problem_part + "}",
+            rf"\input{{{to_posix(statement_path)}}}",
+            r"\endgroup",
+            "",
+        ]
+    )
+
+
+
+def export_overleaf_bundle(build: BuildContext) -> Path:
+    export_root = EXPORTS_DIR / build.contest_root.name
+    bundle_root = export_root / "overleaf"
+    if export_root.exists():
+        shutil.rmtree(export_root)
+    bundle_root.mkdir(parents=True, exist_ok=True)
+
+    copy_file(MAIN_TEX, bundle_root / "main.tex")
+    copy_file(CONTEST_INFO_TEX, bundle_root / "contest-info.tex")
+    copy_file(GENERATED_PROBLEMS_TEX, bundle_root / "generated-problems.tex")
+    copy_tree(ROOT / "styles", bundle_root / "styles")
+
+    info_content = CONTEST_INFO_TEX.read_text(encoding="utf-8")
+    logo_paths = []
+    for name in ("ContestLeftLogo", "ContestRightLogo"):
+        match = re.search(rf"\\newcommand\{{\\{name}\}}\{{([^}}]*)\}}", info_content)
+        if match and match.group(1).strip():
+            logo_paths.append(Path(match.group(1).strip()))
+    for logo_path in logo_paths:
+        source_logo = ROOT / logo_path
+        if source_logo.is_file():
+            copy_file(source_logo, bundle_root / logo_path)
+
+    generated_content = GENERATED_PROBLEMS_TEX.read_text(encoding="utf-8")
+    for problem in build.problems:
+        destination_problem_dir = bundle_root / "problems" / problem.slug
+        destination_assets_dir = destination_problem_dir / "assets"
+        destination_problem_dir.mkdir(parents=True, exist_ok=True)
+        copy_file(problem.statement_tex, destination_problem_dir / "problem.tex")
+        source_assets_dir = ASSETS_DIR / problem.slug
+        if source_assets_dir.is_dir():
+            copy_tree(source_assets_dir, destination_assets_dir)
+        wrapper_relative = problem.wrapper_tex.relative_to(ROOT)
+        generated_content = generated_content.replace(
+            rf"\input{{{to_posix(wrapper_relative)}}}",
+            export_wrapper_content(problem).rstrip(),
+        )
+
+    (bundle_root / "generated-problems.tex").write_text(generated_content + "\n", encoding="utf-8")
+    return bundle_root
+
+
 def update_contest_info(problem_count: int, page_count: int) -> None:
     content = CONTEST_INFO_TEX.read_text(encoding="utf-8")
     content = re.sub(
@@ -279,15 +361,19 @@ def run_xelatex() -> None:
 
 
 
-def parse_package_name() -> str:
-    if len(sys.argv) != 2:
-        raise SystemExit(f"usage: python {Path(__file__).name} <contest-package-folder>")
-    return sys.argv[1]
+def parse_args() -> tuple[str, str]:
+    if len(sys.argv) != 3:
+        raise SystemExit(
+            f"usage: python {Path(__file__).name} <build|overleaf> <contest-package-folder>"
+        )
+    mode = sys.argv[1]
+    if mode not in {"build", "overleaf"}:
+        raise SystemExit("mode must be one of: build, overleaf")
+    return mode, sys.argv[2]
 
 
 
-def main() -> None:
-    package_name = parse_package_name()
+def prepare_build(package_name: str) -> BuildContext:
     contest_root = contest_root_for(package_name)
     if not contest_root.is_dir():
         raise SystemExit(f"missing contest package directory: {contest_root}")
@@ -302,11 +388,27 @@ def main() -> None:
     prepare_build_dir(problems)
     update_contest_info(problem_count=len(problems), page_count=0)
     write_generated_tex(problems)
+    return BuildContext(contest_root=contest_root, problems=problems)
+
+
+
+def build_pdf(build: BuildContext) -> None:
     run_xelatex()
     page_count = extract_page_count()
-    update_contest_info(problem_count=len(problems), page_count=page_count)
+    update_contest_info(problem_count=len(build.problems), page_count=page_count)
     run_xelatex()
     print(f"Built {MAIN_PDF}")
+
+
+
+def main() -> None:
+    mode, package_name = parse_args()
+    build = prepare_build(package_name)
+    if mode == "build":
+        build_pdf(build)
+    else:
+        bundle_root = export_overleaf_bundle(build)
+        print(f"Exported {bundle_root}")
 
 
 if __name__ == "__main__":
