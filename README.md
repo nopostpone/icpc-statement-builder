@@ -30,7 +30,7 @@ git clone https://github.com/nopostpone/icpc-statement-builder.git
 ```
 
 2. 把 polygon 打包出来的 contest package 解压，并将整个文件夹复制到仓库根目录下；或者直接保留 zip，后面的命令和 exe 都支持 zip / 文件夹 两种输入。
-3. 把比赛 logo 放到 `pic/logo.png`。
+3. 准备比赛 logo：放到 `pic/logo.png`（仓库不自带 logo，需自备图片；`pic` 文件夹不存在则新建）。
 4. 根据你的比赛信息，编辑 `contest-info.tex`，修改比赛名称、日期、主办方等。
 5. 根据需要选择运行模式：
 
@@ -70,7 +70,7 @@ python build.py overleaf contest-123
 python build.py overleaf contest-123.zip
 ```
 
-旧版拖拽 exe（`icpc-statement-builder-pdf.exe` / `icpc-statement-builder-overleaf.exe`）仍可使用：把 zip 或 contest 文件夹拖到程序图标上即可，输出在 exe 所在目录。它们首次运行会把 `main.tex`、`contest-info.tex`、`styles/`、`pic/` 解包到 exe 所在目录，之后可直接修改旁边的 `contest-info.tex` 和 `pic/logo.png`，无需重新打包。该脚本会：
+旧版拖拽 exe（`icpc-statement-builder-pdf.exe` / `icpc-statement-builder-overleaf.exe`）仍可使用：把 zip 或 contest 文件夹拖到程序图标上即可，输出在 exe 所在目录。它们首次运行会把 `main.tex`、`contest-info.tex`、`styles/` 解包到 exe 所在目录，logo 需自行放到旁边的 `pic/logo.png`（不放置会导致编译报错）。该脚本会：
 - 读取 `<contest-package-folder-or-zip>` 对应 contest 中 `statements/chinese/statements.tex` 的题目顺序与题号
 - 扫描 `problems/`
 - 读取每道题的 `problems/<slug>/statements/chinese/problem.tex`
@@ -90,7 +90,7 @@ python build.py overleaf contest-123.zip
 - 当前版本默认只读取中文题面：`<contest-package-folder>/problems/<slug>/statements/chinese/problem.tex`
 - `contest-info.tex` 中的 `\ContestProblemCount` 由 `build.py` 自动回填，请不要手动维护；封面与页脚的页数通过 `\pageref{LastPage}` 自动解析，本地编译和 Overleaf 上均无需维护
 - 封面 logo 大小默认由 `\ContestLogoWidth` 控制，可按需要手动调整
-- 封面 logo 不属于 Polygon package，统一使用项目资源路径：`pic/logo.png`
+- 封面 logo 不属于 Polygon package，统一使用项目资源路径：`pic/logo.png`（仓库不自带，需自行提供）
 - `main.tex` 作为主模板，尽量不需要手动修改
 
 ## 依赖

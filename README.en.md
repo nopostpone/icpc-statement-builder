@@ -30,7 +30,7 @@ git clone https://github.com/nopostpone/icpc-statement-builder.git
 ```
 
 2. Unzip the contest package exported from Polygon and copy the whole folder into the repository root; or just keep the zip — both the commands and the exes accept either a folder or a zip.
-3. Put your contest logo at `pic/logo.png`.
+3. Prepare your contest logo: place it at `pic/logo.png` (the repo does not ship a logo — bring your own image; create the `pic` folder if it does not exist).
 4. Edit `contest-info.tex` with your contest info: name, date, organizer, etc.
 5. Choose a run mode:
 
@@ -70,7 +70,7 @@ or:
 python build.py overleaf contest-123.zip
 ```
 
-The legacy drag-and-drop exes (`icpc-statement-builder-pdf.exe` / `icpc-statement-builder-overleaf.exe`) still work: drag a zip or a contest folder onto the program icon, outputs land next to the exe. On first run they unpack `main.tex`, `contest-info.tex`, `styles/` and `pic/` next to the executable; afterwards you can edit `contest-info.tex` and `pic/logo.png` right there, no repackaging needed. The script will:
+The legacy drag-and-drop exes (`icpc-statement-builder-pdf.exe` / `icpc-statement-builder-overleaf.exe`) still work: drag a zip or a contest folder onto the program icon, outputs land next to the exe. On first run they unpack `main.tex`, `contest-info.tex` and `styles/` next to the executable; place your own logo at `pic/logo.png` beside them (builds fail without it). The script will:
 - read the problem order and letters from `statements/chinese/statements.tex` of the contest
 - scan `problems/`
 - read each problem's `problems/<slug>/statements/chinese/problem.tex`
@@ -90,7 +90,7 @@ The legacy drag-and-drop exes (`icpc-statement-builder-pdf.exe` / `icpc-statemen
 - Only Chinese statements are read: `<contest-package-folder>/problems/<slug>/statements/chinese/problem.tex`
 - `\ContestProblemCount` in `contest-info.tex` is auto-filled by `build.py` — do not maintain it by hand; the page counts on the cover and in footers are resolved via `\pageref{LastPage}` automatically, both locally and on Overleaf
 - The cover logo size is controlled by `\ContestLogoWidth`, adjust as needed
-- The cover logo is not part of the Polygon package; it always uses the project resource path `pic/logo.png`
+- The cover logo is not part of the Polygon package; it always uses the project resource path `pic/logo.png` (not included in the repo — bring your own)
 - `main.tex` is the master template and rarely needs manual changes
 
 ## Dependencies
