@@ -14,7 +14,7 @@ ICPC Statement Builder 可以根据 polygon 打包出来的完整 contest packag
 git clone https://github.com/nopostpone/icpc-statement-builder.git
 ```
 
-2. 把 polygon 打包出来的 contest package 解压，并将整个文件夹复制到仓库根目录下。
+2. 把 polygon 打包出来的 contest package 解压，并将整个文件夹复制到仓库根目录下；或者直接保留 zip，后面的命令和 exe 都支持 zip / 文件夹 两种输入。
 3. 把比赛 logo 放到 `pic/logo.png`。
 4. 根据你的比赛信息，编辑 `contest-info.tex`，修改比赛名称、日期、主办方等。
 5. 根据需要选择运行模式：
@@ -22,13 +22,13 @@ git clone https://github.com/nopostpone/icpc-statement-builder.git
 本地 XeLaTeX 直接编译：
 
 ```bash
-python build.py build <contest-package-folder>
+python build.py build <contest-package-folder-or-zip>
 ```
 
 导出一个目录，可以直接上传至 Overleaf 或其他在线 LaTeX 平台进行编译：
 
 ```bash
-python build.py overleaf <contest-package-folder>
+python build.py overleaf <contest-package-folder-or-zip>
 ```
 
 例如，如果你的 contest package 名字是 `contest-123`，我需要本地编译一个题面 pdf，那么在根目录解压 `contest-123.zip` 后：
@@ -37,16 +37,32 @@ python build.py overleaf <contest-package-folder>
 python build.py build contest-123
 ```
 
+如果手上只有 zip，也可以直接：
+
+```bash
+python build.py build contest-123.zip
+```
+
 如果还想要导出成一个目录上传到 Overleaf，运行：
 
 ```bash
 python build.py overleaf contest-123
 ```
 
+或者：
 
+```bash
+python build.py overleaf contest-123.zip
+```
+
+Windows 拖拽使用时，可以直接把 zip 或 contest 文件夹拖到以下程序上：
+- `icpc-statement-builder-pdf.exe`：生成本地 PDF
+- `icpc-statement-builder-overleaf.exe`：导出 Overleaf 目录
+
+两个 exe 均可独立运行：首次运行时会把 `main.tex`、`contest-info.tex`、`styles/`、`pic/` 解包到 exe 所在目录，之后可直接修改旁边的 `contest-info.tex` 和 `pic/logo.png`，无需重新打包。
 该脚本会：
-- 读取 `<contest-package-folder>/statements/chinese/statements.tex` 中的题目顺序与题号
-- 扫描 `<contest-package-folder>/problems/`
+- 读取 `<contest-package-folder-or-zip>` 对应 contest 中 `statements/chinese/statements.tex` 的题目顺序与题号
+- 扫描 `problems/`
 - 读取每道题的 `problems/<slug>/statements/chinese/problem.tex`
 - 生成 `generated-problems.tex`
 - 在 `build` 模式下调用 XeLaTeX 编译 `main.tex`
@@ -62,7 +78,7 @@ python build.py overleaf contest-123
 ## 约定
 
 - 当前版本默认只读取中文题面：`<contest-package-folder>/problems/<slug>/statements/chinese/problem.tex`
-- `contest-info.tex` 中的 `\ContestProblemCount` 和 `\ContestPageCount` 由 `build.py` 自动回填，请不要手动维护
+- `contest-info.tex` 中的 `\ContestProblemCount` 由 `build.py` 自动回填，请不要手动维护；封面与页脚的页数通过 `\pageref{LastPage}` 自动解析，本地编译和 Overleaf 上均无需维护
 - 封面 logo 大小默认由 `\ContestLogoWidth` 控制，可按需要手动调整
 - 封面 logo 不属于 Polygon package，统一使用项目资源路径：`pic/logo.png`
 - `main.tex` 作为主模板，尽量不需要手动修改
@@ -70,7 +86,22 @@ python build.py overleaf contest-123
 ## 依赖
 
 - Python 3.10+
-- XeLaTeX
+- XeLaTeX（本地 PDF 编译需要；仅导出 Overleaf 目录时不需要）
+
+## 打包为 exe
+
+可以使用 PyInstaller 分别生成两个 Windows 可执行文件：
+
+```bash
+pyinstaller pdf.spec
+pyinstaller overleaf.spec
+```
+
+生成后在 `dist/` 中可得到：
+- `icpc-statement-builder-pdf.exe`
+- `icpc-statement-builder-overleaf.exe`
+
+这两个 exe 都支持把 contest zip 或已解压的 contest 文件夹直接拖到程序图标上运行。
 
 ## 输出
 

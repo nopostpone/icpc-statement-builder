@@ -4,10 +4,23 @@ import re
 import shutil
 import subprocess
 import sys
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+
+class UserFacingError(Exception):
+    pass
+
+
+
+def app_root() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
+ROOT = app_root()
 BUILD_DIR = ROOT / ".build"
 WRAPPERS_DIR = BUILD_DIR / "wrappers"
 ASSETS_DIR = BUILD_DIR / "assets"
@@ -16,10 +29,15 @@ GENERATED_PROBLEMS_TEX = ROOT / "generated-problems.tex"
 CONTEST_INFO_TEX = ROOT / "contest-info.tex"
 MAIN_TEX = ROOT / "main.tex"
 MAIN_PDF = ROOT / "main.pdf"
-MAIN_AUX = ROOT / "main.aux"
+DROP_DIR = BUILD_DIR / "drop"
 
-TITLE_RE = re.compile(r"\\begin\{problem\}\{([^}]*)\}")
-LASTPAGE_RE = re.compile(r"\\newlabel\{LastPage\}\{\{\}\{(\d+)\}")
+# Templates and resources the build needs next to the executable. In frozen
+# (PyInstaller onefile) builds these are extracted to sys._MEIPASS, so they must
+# be copied out once; afterwards the copies next to the exe win, so user edits
+# to contest-info.tex and pic/ survive across runs.
+BUNDLED_ASSETS = ("main.tex", "contest-info.tex", "styles", "pic")
+
+TITLE_RE = re.compile(r"\\begin\{problem\}\{((?:[^{}]|\{[^{}]*\})*)\}")
 IMPORT_RE = re.compile(
     r"\\graphicspath\{\{\.\./\.\./problems/([^/]+)/statements/chinese/\}\}\s*"
     r"\\def\\ProblemIndex\{([^}]*)\}\s*"
@@ -43,17 +61,123 @@ class BuildContext:
     problems: list[ProblemStatement]
 
 
+@dataclass(frozen=True)
+class ResolvedContestInput:
+    contest_root: Path
+
+
+
+def ensure_runtime_assets() -> None:
+    if not getattr(sys, "frozen", False):
+        return
+    bundle_dir = Path(getattr(sys, "_MEIPASS", ""))
+    for name in BUNDLED_ASSETS:
+        target = ROOT / name
+        source = bundle_dir / name
+        if target.exists() or not source.exists():
+            continue
+        try:
+            if source.is_dir():
+                shutil.copytree(source, target)
+            else:
+                shutil.copy2(source, target)
+        except OSError as exc:
+            raise UserFacingError(
+                "Could not set up the runtime files next to the executable.\n\n"
+                f"Failed to copy {source} to {target}\n"
+                "Please make sure the folder containing the executable is writable."
+            ) from exc
+
+
+
+def cleanup_drop() -> None:
+    shutil.rmtree(DROP_DIR, ignore_errors=True)
+
+
 
 def contest_root_for(package_name: str) -> Path:
-    return ROOT / package_name
+    package_path = Path(package_name)
+    if package_path.is_absolute():
+        return package_path
+    return (Path.cwd() / package_path).resolve()
+
+
+
+def is_contest_root(path: Path) -> bool:
+    return path.is_dir() and (path / "problems").is_dir() and (path / "statements" / "chinese" / "statements.tex").is_file()
+
+
+
+def find_contest_root(search_root: Path) -> Path:
+    if is_contest_root(search_root):
+        return search_root
+    matches = [path for path in search_root.iterdir() if path.is_dir() and is_contest_root(path)]
+    if len(matches) == 1:
+        return matches[0]
+    if not matches:
+        raise UserFacingError(
+            "Could not find a valid contest package root.\n\n"
+            "Expected to find both:\n"
+            "- problems/\n"
+            "- statements/chinese/statements.tex\n\n"
+            f"Checked under: {search_root}"
+        )
+    raise UserFacingError(
+        "Found multiple possible contest package roots.\n\n"
+        "Please keep only one contest package in the input folder.\n\n"
+        f"Checked under: {search_root}\n"
+        f"Matches: {matches}"
+    )
+
+
+
+def extract_zip_to_temp(zip_path: Path) -> ResolvedContestInput:
+    extract_root = (DROP_DIR / zip_path.stem).resolve()
+    if not extract_root.is_relative_to(DROP_DIR):
+        raise UserFacingError(
+            f"Cannot use this zip file name as an extraction folder:\n{zip_path}"
+        )
+    if extract_root.exists():
+        shutil.rmtree(extract_root)
+    extract_root.mkdir(parents=True, exist_ok=True)
+    try:
+        with zipfile.ZipFile(zip_path) as archive:
+            archive.extractall(extract_root)
+    except zipfile.BadZipFile as exc:
+        raise UserFacingError(
+            f"The zip file is invalid or corrupted:\n{zip_path}"
+        ) from exc
+    contest_root = find_contest_root(extract_root)
+    return ResolvedContestInput(contest_root=contest_root)
+
+
+
+def resolve_contest_input(package_name: str) -> ResolvedContestInput:
+    input_path = contest_root_for(package_name)
+    if not input_path.exists():
+        raise UserFacingError(f"Input path does not exist:\n{input_path}")
+    if input_path.is_file() and input_path.suffix.lower() == ".zip":
+        return extract_zip_to_temp(input_path)
+    if input_path.is_dir():
+        return ResolvedContestInput(contest_root=find_contest_root(input_path))
+    raise UserFacingError(
+        "Expected a contest folder or a .zip file as input.\n\n"
+        f"Got: {input_path}"
+    )
 
 
 
 def require_problems_dir(problems_dir: Path, statements_order_tex: Path) -> None:
     if not problems_dir.is_dir():
-        raise SystemExit(f"missing problems directory: {problems_dir}")
+        raise UserFacingError(
+            "This does not look like a valid contest package.\n\n"
+            f"Missing directory: {problems_dir}"
+        )
     if not statements_order_tex.is_file():
-        raise SystemExit(f"missing statements order file: {statements_order_tex}")
+        raise UserFacingError(
+            "This does not look like a valid contest package.\n\n"
+            f"Missing file: {statements_order_tex}"
+        )
 
 
 
@@ -61,7 +185,11 @@ def problem_order_from_statements(statements_order_tex: Path) -> list[tuple[str,
     text = statements_order_tex.read_text(encoding="utf-8")
     matches = IMPORT_RE.findall(text)
     if not matches:
-        raise ValueError(f"cannot parse problem order from: {statements_order_tex}")
+        raise UserFacingError(
+            "Could not parse problem order from statements.tex.\n\n"
+            "Please check whether statements/chinese/statements.tex contains valid problem imports.\n\n"
+            f"File: {statements_order_tex}"
+        )
     return [(slug, letter) for slug, letter in matches]
 
 
@@ -77,7 +205,10 @@ def discover_problem_dirs(problems_dir: Path, order: list[tuple[str, str]]) -> l
         else:
             ordered.append(problem_dir)
     if missing:
-        raise FileNotFoundError(f"missing problem directories referenced by statements order: {missing}")
+        raise UserFacingError(
+            "Some problems listed in statements.tex were not found in problems/.\n\n"
+            f"Missing problem directories: {missing}"
+        )
     return ordered
 
 
@@ -85,7 +216,10 @@ def discover_problem_dirs(problems_dir: Path, order: list[tuple[str, str]]) -> l
 def statement_path_for(problem_dir: Path) -> Path:
     statement_tex = problem_dir / "statements" / "chinese" / "problem.tex"
     if not statement_tex.is_file():
-        raise FileNotFoundError(f"missing chinese statement tex: {statement_tex}")
+        raise UserFacingError(
+            "A problem is missing its Chinese statement file.\n\n"
+            f"Missing file: {statement_tex}"
+        )
     return statement_tex
 
 
@@ -94,23 +228,11 @@ def extract_title(statement_tex: Path) -> str:
     text = statement_tex.read_text(encoding="utf-8")
     match = TITLE_RE.search(text)
     if not match:
-        raise ValueError(f"cannot extract title from: {statement_tex}")
+        raise UserFacingError(
+            "Could not extract the problem title from a statement file.\n\n"
+            f"File: {statement_tex}"
+        )
     return match.group(1).strip()
-
-
-
-def problem_letter(index: int) -> str:
-    if index < 0:
-        raise ValueError("index must be non-negative")
-
-    label = ""
-    value = index
-    while True:
-        value, remainder = divmod(value, 26)
-        label = chr(ord("A") + remainder) + label
-        if value == 0:
-            return label
-        value -= 1
 
 
 
@@ -147,12 +269,13 @@ def make_wrapper(problem_dir: Path, statement_tex: Path) -> Path:
 def collect_problems(problems_dir: Path, statements_order_tex: Path) -> list[ProblemStatement]:
     problems: list[ProblemStatement] = []
     order = problem_order_from_statements(statements_order_tex)
-    for problem_dir, (_, letter) in zip(discover_problem_dirs(problems_dir, order), order):
+    problem_dirs = discover_problem_dirs(problems_dir, order)
+    for (slug, letter), problem_dir in zip(order, problem_dirs):
         statement_tex = statement_path_for(problem_dir)
         wrapper_tex = make_wrapper(problem_dir, statement_tex)
         problems.append(
             ProblemStatement(
-                slug=problem_dir.name,
+                slug=slug,
                 title=extract_title(statement_tex),
                 letter=letter,
                 statement_tex=statement_tex,
@@ -165,14 +288,16 @@ def collect_problems(problems_dir: Path, statements_order_tex: Path) -> list[Pro
 
 def latex_escape(text: str) -> str:
     replacements = {
-        "\\": r"\\textbackslash{}",
-        "&": r"\\&",
-        "%": r"\\%",
-        "$": r"\\$",
-        "#": r"\\#",
-        "_": r"\\_",
-        "{": r"\\{",
-        "}": r"\\}",
+        "\\": r"\textbackslash{}",
+        "&": r"\&",
+        "%": r"\%",
+        "$": r"\$",
+        "#": r"\#",
+        "_": r"\_",
+        "{": r"\{",
+        "}": r"\}",
+        "~": r"\textasciitilde{}",
+        "^": r"\textasciicircum{}",
     }
     return "".join(replacements.get(ch, ch) for ch in text)
 
@@ -261,15 +386,25 @@ def export_overleaf_bundle(build: BuildContext) -> Path:
     copy_tree(ROOT / "styles", bundle_root / "styles")
 
     info_content = CONTEST_INFO_TEX.read_text(encoding="utf-8")
-    logo_paths = []
     for name in ("ContestLeftLogo", "ContestRightLogo"):
         match = re.search(rf"\\newcommand\{{\\{name}\}}\{{([^}}]*)\}}", info_content)
-        if match and match.group(1).strip():
-            logo_paths.append(Path(match.group(1).strip()))
-    for logo_path in logo_paths:
-        source_logo = ROOT / logo_path
-        if source_logo.is_file():
-            copy_file(source_logo, bundle_root / logo_path)
+        if not match or not match.group(1).strip():
+            continue
+        logo_path = Path(match.group(1).strip())
+        source_logo = (ROOT / logo_path).resolve()
+        try:
+            relative_logo = source_logo.relative_to(ROOT)
+        except ValueError:
+            raise UserFacingError(
+                f"\\{name} must point to a file inside the project folder.\n\n"
+                f"Got: {logo_path}"
+            ) from None
+        if not source_logo.is_file():
+            raise UserFacingError(
+                f"The logo configured as \\{name} does not exist.\n\n"
+                f"Missing file: {source_logo}"
+            )
+        copy_file(source_logo, bundle_root / relative_logo)
 
     generated_content = GENERATED_PROBLEMS_TEX.read_text(encoding="utf-8")
     for problem in build.problems:
@@ -290,30 +425,21 @@ def export_overleaf_bundle(build: BuildContext) -> Path:
     return bundle_root
 
 
-def update_contest_info(problem_count: int, page_count: int) -> None:
+def update_contest_info(problem_count: int) -> None:
     content = CONTEST_INFO_TEX.read_text(encoding="utf-8")
-    content = re.sub(
+    content, replaced = re.subn(
         r"\\newcommand\{\\ContestProblemCount\}\{\d+\}",
         rf"\\newcommand{{\\ContestProblemCount}}{{{problem_count}}}",
         content,
     )
-    content = re.sub(
-        r"\\newcommand\{\\ContestPageCount\}\{\d+\}",
-        rf"\\newcommand{{\\ContestPageCount}}{{{page_count}}}",
-        content,
-    )
+    if replaced == 0:
+        raise UserFacingError(
+            "Could not update the problem count in contest-info.tex.\n\n"
+            "Expected a line of the exact form:\n"
+            "\\newcommand{\\ContestProblemCount}{3}\n\n"
+            f"File: {CONTEST_INFO_TEX}"
+        )
     CONTEST_INFO_TEX.write_text(content, encoding="utf-8")
-
-
-
-def extract_page_count() -> int:
-    if not MAIN_AUX.is_file():
-        raise FileNotFoundError(f"missing aux file: {MAIN_AUX}")
-    text = MAIN_AUX.read_text(encoding="utf-8", errors="ignore")
-    match = LASTPAGE_RE.search(text)
-    if not match:
-        raise ValueError("cannot determine total page count from main.aux")
-    return int(match.group(1))
 
 
 
@@ -333,8 +459,10 @@ def copy_assets_for_problem(problem: ProblemStatement) -> None:
 
 
 def prepare_build_dir(problems: list[ProblemStatement]) -> None:
-    if BUILD_DIR.exists():
-        shutil.rmtree(BUILD_DIR)
+    if WRAPPERS_DIR.exists():
+        shutil.rmtree(WRAPPERS_DIR)
+    if ASSETS_DIR.exists():
+        shutil.rmtree(ASSETS_DIR)
     WRAPPERS_DIR.mkdir(parents=True, exist_ok=True)
     ASSETS_DIR.mkdir(parents=True, exist_ok=True)
     for problem in problems:
@@ -350,33 +478,48 @@ def run_xelatex() -> None:
         "-halt-on-error",
         MAIN_TEX.name,
     ]
-    for _ in range(2):
-        subprocess.run(
-            command,
-            cwd=ROOT,
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.STDOUT,
-        )
+    try:
+        for _ in range(2):
+            subprocess.run(
+                command,
+                cwd=ROOT,
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.STDOUT,
+            )
+    except FileNotFoundError as exc:
+        raise UserFacingError(
+            "xelatex was not found.\n\n"
+            "Please install TeX Live or MiKTeX and make sure xelatex is available in PATH.\n"
+            "If you only need an online build, use the Overleaf export executable instead."
+        ) from exc
+    except subprocess.CalledProcessError as exc:
+        raise UserFacingError(
+            "XeLaTeX build failed.\n\n"
+            f"See this file for details:\n{MAIN_TEX.with_suffix('.log')}\n\n"
+            "Common causes include LaTeX syntax errors in a problem statement, missing images, or missing statement assets."
+        ) from exc
 
 
 
 def parse_args() -> tuple[str, str]:
+    if len(sys.argv) == 2:
+        return "both", sys.argv[1]
     if len(sys.argv) != 3:
         raise SystemExit(
-            f"usage: python {Path(__file__).name} <build|overleaf> <contest-package-folder>"
+            f"usage: python {Path(__file__).name} <build|overleaf> <contest-package-folder-or-zip>"
         )
     mode = sys.argv[1]
-    if mode not in {"build", "overleaf"}:
-        raise SystemExit("mode must be one of: build, overleaf")
+    if mode not in {"build", "overleaf", "both"}:
+        raise SystemExit("mode must be one of: build, overleaf, both")
     return mode, sys.argv[2]
 
 
 
 def prepare_build(package_name: str) -> BuildContext:
-    contest_root = contest_root_for(package_name)
-    if not contest_root.is_dir():
-        raise SystemExit(f"missing contest package directory: {contest_root}")
+    ensure_runtime_assets()
+    resolved = resolve_contest_input(package_name)
+    contest_root = resolved.contest_root
 
     problems_dir = contest_root / "problems"
     statements_order_tex = contest_root / "statements" / "chinese" / "statements.tex"
@@ -386,34 +529,46 @@ def prepare_build(package_name: str) -> BuildContext:
     if not problems:
         raise SystemExit(f"no problem directories found under {problems_dir}")
     prepare_build_dir(problems)
-    update_contest_info(problem_count=len(problems), page_count=0)
+    update_contest_info(problem_count=len(problems))
     write_generated_tex(problems)
     return BuildContext(contest_root=contest_root, problems=problems)
 
 
 
 def build_pdf(build: BuildContext) -> None:
+    # Two passes are required: the cover and footers reference \pageref{LastPage},
+    # which is only resolvable after the first pass has written the aux file.
     run_xelatex()
-    page_count = extract_page_count()
-    update_contest_info(problem_count=len(build.problems), page_count=page_count)
     run_xelatex()
     print(f"Built {MAIN_PDF}")
 
 
 
+def run_pdf_mode(package_name: str) -> None:
+    build = prepare_build(package_name)
+    build_pdf(build)
+
+
+
+def run_overleaf_mode(package_name: str) -> None:
+    build = prepare_build(package_name)
+    bundle_root = export_overleaf_bundle(build)
+    print(f"Exported {bundle_root}")
+
+
+
 def main() -> None:
     mode, package_name = parse_args()
-    build = prepare_build(package_name)
-    if mode == "build":
-        build_pdf(build)
-    else:
-        bundle_root = export_overleaf_bundle(build)
-        print(f"Exported {bundle_root}")
+    if mode in {"build", "both"}:
+        run_pdf_mode(package_name)
+    if mode in {"overleaf", "both"}:
+        run_overleaf_mode(package_name)
 
 
 if __name__ == "__main__":
     try:
         main()
-    except subprocess.CalledProcessError as exc:
-        print(f"build failed with exit code {exc.returncode}", file=sys.stderr)
-        raise
+    except UserFacingError as exc:
+        print(exc, file=sys.stderr)
+        raise SystemExit(1) from exc
+    cleanup_drop()
