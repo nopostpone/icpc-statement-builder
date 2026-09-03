@@ -19,7 +19,7 @@ ICPC Statement Builder 可以根据 polygon 打包出来的完整 contest packag
 3. 按需填写比赛名称、主办方、日期（留空则保持原值）
 4. 勾选「生成 PDF」和/或「导出 Overleaf 目录」，点击「生成」
 
-生成的文件放在所选 contest 包旁边：`<包名>.pdf` 与 `<包名>/overleaf/`。exe 首次运行会把 `main.tex`、`contest-info.tex`、`styles/`、`pic/` 解包到 exe 所在目录，之后可直接修改旁边的 `contest-info.tex` 和 `pic/logo.png`，无需重新打包。
+生成的文件放在所选 contest 包旁边：`<包名>.pdf` 与 `<包名>/overleaf/`。exe 首次运行会把 `main.tex`、`contest-info.tex`、`styles/` 解包到 exe 所在目录（logo 不预置，生成时必选），之后可直接修改旁边的 `contest-info.tex`，无需重新打包。
 
 ### 命令行
 
@@ -70,7 +70,7 @@ python build.py overleaf contest-123
 python build.py overleaf contest-123.zip
 ```
 
-旧版拖拽 exe（`icpc-statement-builder-pdf.exe` / `icpc-statement-builder-overleaf.exe`）仍可使用：把 zip 或 contest 文件夹拖到程序图标上即可，输出在 exe 所在目录。它们和 GUI exe 一样，首次运行会把 `main.tex`、`contest-info.tex`、`styles/`、`pic/` 解包到 exe 所在目录，之后可直接修改旁边的 `contest-info.tex` 和 `pic/logo.png`，无需重新打包。该脚本会：
+旧版拖拽 exe（`icpc-statement-builder-pdf.exe` / `icpc-statement-builder-overleaf.exe`）仍可使用：把 zip 或 contest 文件夹拖到程序图标上即可，输出在 exe 所在目录。它们首次运行会把 `main.tex`、`contest-info.tex`、`styles/`、`pic/` 解包到 exe 所在目录，之后可直接修改旁边的 `contest-info.tex` 和 `pic/logo.png`，无需重新打包。该脚本会：
 - 读取 `<contest-package-folder-or-zip>` 对应 contest 中 `statements/chinese/statements.tex` 的题目顺序与题号
 - 扫描 `problems/`
 - 读取每道题的 `problems/<slug>/statements/chinese/problem.tex`

@@ -19,7 +19,7 @@ Run `icpc-statement-builder.exe`:
 3. Optionally fill in the contest name, organizer and date (leave blank to keep current values)
 4. Tick "生成 PDF" and/or "导出 Overleaf 目录", then click "生成"
 
-Outputs are placed next to the selected contest package: `<name>.pdf` and `<name>/overleaf/`. On first run the exe unpacks `main.tex`, `contest-info.tex`, `styles/` and `pic/` next to itself; afterwards you can edit `contest-info.tex` and `pic/logo.png` right there, no repackaging needed.
+Outputs are placed next to the selected contest package: `<name>.pdf` and `<name>/overleaf/`. On first run the exe unpacks `main.tex`, `contest-info.tex` and `styles/` next to itself (no logo is bundled — it is chosen at generation time); afterwards you can edit `contest-info.tex` right there, no repackaging needed.
 
 ### Command line
 
@@ -70,7 +70,7 @@ or:
 python build.py overleaf contest-123.zip
 ```
 
-The legacy drag-and-drop exes (`icpc-statement-builder-pdf.exe` / `icpc-statement-builder-overleaf.exe`) still work: drag a zip or a contest folder onto the program icon, outputs land next to the exe. Like the GUI exe, on first run they unpack `main.tex`, `contest-info.tex`, `styles/` and `pic/` next to the executable; afterwards you can edit `contest-info.tex` and `pic/logo.png` right there, no repackaging needed. The script will:
+The legacy drag-and-drop exes (`icpc-statement-builder-pdf.exe` / `icpc-statement-builder-overleaf.exe`) still work: drag a zip or a contest folder onto the program icon, outputs land next to the exe. On first run they unpack `main.tex`, `contest-info.tex`, `styles/` and `pic/` next to the executable; afterwards you can edit `contest-info.tex` and `pic/logo.png` right there, no repackaging needed. The script will:
 - read the problem order and letters from `statements/chinese/statements.tex` of the contest
 - scan `problems/`
 - read each problem's `problems/<slug>/statements/chinese/problem.tex`
