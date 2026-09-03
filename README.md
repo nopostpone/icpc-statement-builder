@@ -1,3 +1,5 @@
+简体中文 | [English](README.en.md)
+
 # ICPC Statement Builder
 
 polygon 自带的 sty 文件对中文支持不佳，无法直接编译中文题面。
@@ -59,8 +61,7 @@ Windows 拖拽使用时，可以直接把 zip 或 contest 文件夹拖到以下�
 - `icpc-statement-builder-pdf.exe`：生成本地 PDF
 - `icpc-statement-builder-overleaf.exe`：导出 Overleaf 目录
 
-两个 exe 均可独立运行：首次运行时会把 `main.tex`、`contest-info.tex`、`styles/`、`pic/` 解包到 exe 所在目录，之后可直接修改旁边的 `contest-info.tex` 和 `pic/logo.png`，无需重新打包。
-该脚本会：
+两个 exe 均可独立运行：首次运行时会把 `main.tex`、`contest-info.tex`、`styles/`、`pic/` 解包到 exe 所在目录，之后可直接修改旁边的 `contest-info.tex` 和 `pic/logo.png`，无需重新打包。该脚本会：
 - 读取 `<contest-package-folder-or-zip>` 对应 contest 中 `statements/chinese/statements.tex` 的题目顺序与题号
 - 扫描 `problems/`
 - 读取每道题的 `problems/<slug>/statements/chinese/problem.tex`
@@ -71,7 +72,7 @@ Windows 拖拽使用时，可以直接把 zip 或 contest 文件夹拖到以下�
 ## 文件职责
 
 - `main.tex`：主模板，负责加载宏包、样式文件和题面输出
-- `contest-info.tex`：比赛配置文件，保存比赛名称、主办方、日期、logo，以及由 `build.py` 自动回填的题数和页数
+- `contest-info.tex`：比赛配置文件，保存比赛名称、主办方、日期、logo，以及由 `build.py` 自动回填的题数
 - `styles/olymp.sty`：Polygon 题面排版层，负责 `problem`、输入输出、样例等环境
 - `styles/contest-style.sty`：本项目固定布局层，负责封面、页眉页脚等宏
 
