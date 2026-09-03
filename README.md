@@ -10,6 +10,19 @@ ICPC Statement Builder 可以根据 polygon 打包出来的完整 contest packag
 
 ## 用法
 
+### 图形界面（推荐）
+
+运行 `icpc-statement-builder.exe`：
+
+1. 选择 contest 包（zip 或文件夹，**必选**）
+2. 选择 logo 图片（**必选**）
+3. 按需填写比赛名称、主办方、日期（留空则保持原值）
+4. 勾选「生成 PDF」和/或「导出 Overleaf 目录」，点击「生成」
+
+生成的文件放在所选 contest 包旁边：`<包名>.pdf` 与 `<包名>/overleaf/`。exe 首次运行会把 `main.tex`、`contest-info.tex`、`styles/`、`pic/` 解包到 exe 所在目录，之后可直接修改旁边的 `contest-info.tex` 和 `pic/logo.png`，无需重新打包。
+
+### 命令行
+
 1. 在根目录克隆本仓库：
 
 ```bash
@@ -57,11 +70,7 @@ python build.py overleaf contest-123
 python build.py overleaf contest-123.zip
 ```
 
-Windows 拖拽使用时，可以直接把 zip 或 contest 文件夹拖到以下程序上：
-- `icpc-statement-builder-pdf.exe`：生成本地 PDF
-- `icpc-statement-builder-overleaf.exe`：导出 Overleaf 目录
-
-两个 exe 均可独立运行：首次运行时会把 `main.tex`、`contest-info.tex`、`styles/`、`pic/` 解包到 exe 所在目录，之后可直接修改旁边的 `contest-info.tex` 和 `pic/logo.png`，无需重新打包。该脚本会：
+旧版拖拽 exe（`icpc-statement-builder-pdf.exe` / `icpc-statement-builder-overleaf.exe`）仍可使用：把 zip 或 contest 文件夹拖到程序图标上即可，输出在 exe 所在目录。它们和 GUI exe 一样，首次运行会把 `main.tex`、`contest-info.tex`、`styles/`、`pic/` 解包到 exe 所在目录，之后可直接修改旁边的 `contest-info.tex` 和 `pic/logo.png`，无需重新打包。该脚本会：
 - 读取 `<contest-package-folder-or-zip>` 对应 contest 中 `statements/chinese/statements.tex` 的题目顺序与题号
 - 扫描 `problems/`
 - 读取每道题的 `problems/<slug>/statements/chinese/problem.tex`
@@ -93,7 +102,7 @@ Windows 拖拽使用时，可以直接把 zip 或 contest 文件夹拖到以下�
 
 ### 自动发布（推荐）
 
-推送一个 `v` 开头的 tag（如 `v1.0.0`），GitHub Actions 会自动在 Windows 环境打包两个 exe 并发布到 Releases：
+推送一个 `v` 开头的 tag（如 `v1.0.0`），GitHub Actions 会自动在 Windows 环境打包 GUI exe 并发布到 Releases：
 
 ```bash
 git tag v1.0.0
@@ -105,19 +114,24 @@ git push origin v1.0.0
 ### 本地打包
 
 ```bash
+pyinstaller gui.spec
+
+# 旧版拖拽 exe（可选）
 pyinstaller pdf.spec
 pyinstaller overleaf.spec
 ```
 
 生成后在 `dist/` 中可得到：
-- `icpc-statement-builder-pdf.exe`
-- `icpc-statement-builder-overleaf.exe`
+- `icpc-statement-builder.exe`：图形界面版
+- `icpc-statement-builder-pdf.exe` / `icpc-statement-builder-overleaf.exe`：旧版拖拽版（可选）
 
-这两个 exe 都支持把 contest zip 或已解压的 contest 文件夹直接拖到程序图标上运行。
+拖拽版支持把 contest zip 或已解压的 contest 文件夹直接拖到程序图标上运行。
 
 ## 输出
 
-`build` 模式默认会在项目根目录生成：
+GUI 模式的产物放在所选 contest 包旁边：`<包名>.pdf` 和 `<包名>/overleaf/`。
+
+`build` 模式（命令行）默认会在项目根目录生成：
 - `generated-problems.tex`
 - `main.pdf`
 - `.build/`（中间生成文件）

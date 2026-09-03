@@ -10,6 +10,19 @@ ICPC Statement Builder takes a complete contest package exported from Polygon an
 
 ## Usage
 
+### GUI (recommended)
+
+Run `icpc-statement-builder.exe`:
+
+1. Pick the contest package (zip or folder, **required**)
+2. Pick a logo image (**required**)
+3. Optionally fill in the contest name, organizer and date (leave blank to keep current values)
+4. Tick "生成 PDF" and/or "导出 Overleaf 目录", then click "生成"
+
+Outputs are placed next to the selected contest package: `<name>.pdf` and `<name>/overleaf/`. On first run the exe unpacks `main.tex`, `contest-info.tex`, `styles/` and `pic/` next to itself; afterwards you can edit `contest-info.tex` and `pic/logo.png` right there, no repackaging needed.
+
+### Command line
+
 1. Clone this repository:
 
 ```bash
@@ -57,11 +70,7 @@ or:
 python build.py overleaf contest-123.zip
 ```
 
-On Windows, you can simply drag a zip or a contest folder onto one of these programs:
-- `icpc-statement-builder-pdf.exe`: build a local PDF
-- `icpc-statement-builder-overleaf.exe`: export an Overleaf directory
-
-Both exes are self-contained: on first run they unpack `main.tex`, `contest-info.tex`, `styles/` and `pic/` next to the executable. Afterwards you can edit `contest-info.tex` and `pic/logo.png` right there, no repackaging needed. The script will:
+The legacy drag-and-drop exes (`icpc-statement-builder-pdf.exe` / `icpc-statement-builder-overleaf.exe`) still work: drag a zip or a contest folder onto the program icon, outputs land next to the exe. Like the GUI exe, on first run they unpack `main.tex`, `contest-info.tex`, `styles/` and `pic/` next to the executable; afterwards you can edit `contest-info.tex` and `pic/logo.png` right there, no repackaging needed. The script will:
 - read the problem order and letters from `statements/chinese/statements.tex` of the contest
 - scan `problems/`
 - read each problem's `problems/<slug>/statements/chinese/problem.tex`
@@ -93,7 +102,7 @@ Both exes are self-contained: on first run they unpack `main.tex`, `contest-info
 
 ### Automatic releases (recommended)
 
-Push a tag starting with `v` (e.g. `v1.0.0`) and GitHub Actions will automatically build both exes on Windows and publish them to Releases:
+Push a tag starting with `v` (e.g. `v1.0.0`) and GitHub Actions will automatically build the GUI exe on Windows and publish it to Releases:
 
 ```bash
 git tag v1.0.0
@@ -105,19 +114,24 @@ You can also trigger it manually from the repository's Actions page (Run workflo
 ### Local packaging
 
 ```bash
+pyinstaller gui.spec
+
+# legacy drag-and-drop exes (optional)
 pyinstaller pdf.spec
 pyinstaller overleaf.spec
 ```
 
 This produces in `dist/`:
-- `icpc-statement-builder-pdf.exe`
-- `icpc-statement-builder-overleaf.exe`
+- `icpc-statement-builder.exe`: the GUI version
+- `icpc-statement-builder-pdf.exe` / `icpc-statement-builder-overleaf.exe`: legacy drag-and-drop versions (optional)
 
-Both exes support dragging a contest zip or an extracted contest folder onto the program icon.
+The drag-and-drop exes accept a contest zip or an extracted contest folder dropped onto the program icon.
 
 ## Output
 
-`build` mode generates in the project root:
+GUI mode places its outputs next to the selected contest package: `<name>.pdf` and `<name>/overleaf/`.
+
+`build` mode (command line) generates in the project root:
 - `generated-problems.tex`
 - `main.pdf`
 - `.build/` (intermediate files)

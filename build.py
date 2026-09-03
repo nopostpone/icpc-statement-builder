@@ -373,11 +373,26 @@ def export_wrapper_content(problem: ProblemStatement) -> str:
 
 
 
-def export_overleaf_bundle(build: BuildContext) -> Path:
-    export_root = EXPORTS_DIR / build.contest_root.name
-    bundle_root = export_root / "overleaf"
-    if export_root.exists():
-        shutil.rmtree(export_root)
+def output_paths_for(package: Path) -> tuple[Path, Path]:
+    """Delivery locations for a given contest package: (pdf, overleaf base).
+
+    Both sit next to the package itself: <name>.pdf and <name>/overleaf/.
+    """
+    package = Path(package)
+    # Decide by suffix, not by touching the filesystem: the package may be a
+    # path that does not exist yet, and folders must keep their full name.
+    stem = package.stem if package.suffix.lower() == ".zip" else package.name
+    return package.parent / f"{stem}.pdf", package.parent / stem
+
+
+
+def export_overleaf_bundle(build: BuildContext, destination_dir: Path | None = None) -> Path:
+    if destination_dir is None:
+        bundle_root = EXPORTS_DIR / build.contest_root.name / "overleaf"
+    else:
+        bundle_root = Path(destination_dir) / "overleaf"
+    if bundle_root.exists():
+        shutil.rmtree(bundle_root)
     bundle_root.mkdir(parents=True, exist_ok=True)
 
     copy_file(MAIN_TEX, bundle_root / "main.tex")
@@ -443,6 +458,72 @@ def update_contest_info(problem_count: int) -> None:
 
 
 
+INFO_MACROS = ("ContestName", "ContestOrganizer", "ContestDate", "ContestLeftLogo")
+
+UNESCAPE_ORDER = (
+    (r"\textbackslash{}", "\\"),
+    (r"\textasciitilde{}", "~"),
+    (r"\textasciicircum{}", "^"),
+    (r"\&", "&"),
+    (r"\%", "%"),
+    (r"\$", "$"),
+    (r"\#", "#"),
+    (r"\_", "_"),
+    (r"\{", "{"),
+    (r"\}", "}"),
+)
+
+
+def latex_unescape(text: str) -> str:
+    for escaped, raw in UNESCAPE_ORDER:
+        text = text.replace(escaped, raw)
+    return text
+
+
+
+def read_contest_info_values() -> dict[str, str]:
+    content = CONTEST_INFO_TEX.read_text(encoding="utf-8")
+    values: dict[str, str] = {}
+    for macro in INFO_MACROS:
+        match = re.search(rf"\\newcommand\{{\\{macro}\}}\{{([^}}]*)\}}", content)
+        values[macro] = latex_unescape(match.group(1)) if match else ""
+    return values
+
+
+
+def set_contest_info(
+    name: str | None = None,
+    organizer: str | None = None,
+    date: str | None = None,
+    logo_path: str | None = None,
+) -> None:
+    content = CONTEST_INFO_TEX.read_text(encoding="utf-8")
+    updates = {
+        "ContestName": None if name is None else latex_escape(name),
+        "ContestOrganizer": None if organizer is None else latex_escape(organizer),
+        "ContestDate": None if date is None else latex_escape(date),
+        # Path("") would normalize to ".", so keep empty as a bare empty value.
+        "ContestLeftLogo": None if logo_path is None else (to_posix(Path(logo_path)) if logo_path else ""),
+    }
+    for macro, value in updates.items():
+        if value is None:
+            continue
+        content, replaced = re.subn(
+            rf"\\newcommand\{{\\{macro}\}}\{{[^}}]*\}}",
+            rf"\\newcommand{{\\{macro}}}{{{value}}}",
+            content,
+        )
+        if replaced == 0:
+            raise UserFacingError(
+                f"Could not update \\{macro} in contest-info.tex.\n\n"
+                "Expected a line of the exact form:\n"
+                f"\\newcommand{{\\{macro}}}{{...}}\n\n"
+                f"File: {CONTEST_INFO_TEX}"
+            )
+    CONTEST_INFO_TEX.write_text(content, encoding="utf-8")
+
+
+
 def copy_assets_for_problem(problem: ProblemStatement) -> None:
     source_dir = problem.statement_tex.parent
     target_dir = ASSETS_DIR / problem.slug
@@ -480,18 +561,21 @@ def run_xelatex() -> None:
     ]
     try:
         for _ in range(2):
+            # CREATE_NO_WINDOW keeps xelatex from flashing a console window when
+            # the builder runs from the windowed GUI executable.
             subprocess.run(
                 command,
                 cwd=ROOT,
                 check=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.STDOUT,
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
             )
     except FileNotFoundError as exc:
         raise UserFacingError(
             "xelatex was not found.\n\n"
             "Please install TeX Live or MiKTeX and make sure xelatex is available in PATH.\n"
-            "If you only need an online build, use the Overleaf export executable instead."
+            "If you only need an online build, use the Overleaf export mode instead."
         ) from exc
     except subprocess.CalledProcessError as exc:
         raise UserFacingError(
@@ -527,7 +611,10 @@ def prepare_build(package_name: str) -> BuildContext:
     require_problems_dir(problems_dir, statements_order_tex)
     problems = collect_problems(problems_dir, statements_order_tex)
     if not problems:
-        raise SystemExit(f"no problem directories found under {problems_dir}")
+        raise UserFacingError(
+            "No problem directories were found in the contest package.\n\n"
+            f"Problems folder: {problems_dir}"
+        )
     prepare_build_dir(problems)
     update_contest_info(problem_count=len(problems))
     write_generated_tex(problems)

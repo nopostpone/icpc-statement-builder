@@ -22,10 +22,8 @@ jobs:
       - name: Install PyInstaller
         run: pip install pyinstaller==6.22.2
 
-      - name: Build executables
-        run: |
-          pyinstaller pdf.spec
-          pyinstaller overleaf.spec
+      - name: Build executable
+        run: pyinstaller gui.spec
 
       # Manual runs: build only, upload as a downloadable artifact, no release.
       - name: Upload build artifacts
