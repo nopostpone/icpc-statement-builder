@@ -1,4 +1,4 @@
-简体中文 | [English](README.en.md)
+[English version](README.en.md)
 
 # ICPC Statement Builder
 
