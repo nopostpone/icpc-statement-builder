@@ -90,7 +90,18 @@ Windows 拖拽使用时，可以直接把 zip 或 contest 文件夹拖到以下�
 
 ## 打包为 exe
 
-可以使用 PyInstaller 分别生成两个 Windows 可执行文件：
+### 自动发布（推荐）
+
+推送一个 `v` 开头的 tag（如 `v1.0.0`），GitHub Actions 会自动在 Windows 环境打包两个 exe 并发布到 Releases：
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+也可以在仓库的 Actions 页面手动触发（Run workflow），仅构建并生成可下载的 artifact，不创建 Release。
+
+### 本地打包
 
 ```bash
 pyinstaller pdf.spec
