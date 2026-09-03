@@ -1,9 +1,15 @@
-problems/
-statements/
-
-.build/
+# Python
 __pycache__/
-example.*
+
+# Build outputs (build.py, PyInstaller)
+.build/
+build/
+dist/
+exports/
+
+# LaTeX generated files
+generated-problems.tex
+main.pdf
 *.aux
 *.log
 *.out
@@ -12,14 +18,10 @@ example.*
 *.fdb_latexmk
 *.synctex.gz
 
-main.pdf
-generated-problems.tex
-contest-info.tex
-main.tex
-
-**.zip
-
-**/
-!pic/
-!styles/
-!styles/*.sty
+# Local test data
+*.zip
+example.*
+/contest*/
+/bad-*/
+problems/
+statements/
