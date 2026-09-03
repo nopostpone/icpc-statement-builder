@@ -31,11 +31,33 @@ MAIN_TEX = ROOT / "main.tex"
 MAIN_PDF = ROOT / "main.pdf"
 DROP_DIR = BUILD_DIR / "drop"
 
-# Templates and resources the build needs next to the executable. In frozen
-# (PyInstaller onefile) builds these are extracted to sys._MEIPASS, so they must
-# be copied out once; afterwards the copies next to the exe win, so user edits
-# to contest-info.tex and pic/ survive across runs.
-BUNDLED_ASSETS = ("main.tex", "contest-info.tex", "styles", "pic")
+# Templates the engine materialises into the work root when missing. In frozen
+# (PyInstaller onefile) builds they come from sys._MEIPASS, in a repo checkout
+# from the repository itself. pic/ is intentionally absent: logos are provided
+# by the user.
+BUNDLED_ASSETS = ("main.tex", "contest-info.tex", "styles")
+
+
+
+def set_work_root(path: Path) -> None:
+    """Repoint every engine path at an arbitrary work root.
+
+    The GUI builds inside a throwaway temp directory so the executable's own
+    folder stays completely clean; the CLI and the legacy drag-and-drop exes
+    keep the default (the directory containing build.py / the exe).
+    """
+    global ROOT, BUILD_DIR, WRAPPERS_DIR, ASSETS_DIR, EXPORTS_DIR
+    global GENERATED_PROBLEMS_TEX, CONTEST_INFO_TEX, MAIN_TEX, MAIN_PDF, DROP_DIR
+    ROOT = Path(path)
+    BUILD_DIR = ROOT / ".build"
+    WRAPPERS_DIR = BUILD_DIR / "wrappers"
+    ASSETS_DIR = BUILD_DIR / "assets"
+    EXPORTS_DIR = ROOT / "exports"
+    GENERATED_PROBLEMS_TEX = ROOT / "generated-problems.tex"
+    CONTEST_INFO_TEX = ROOT / "contest-info.tex"
+    MAIN_TEX = ROOT / "main.tex"
+    MAIN_PDF = ROOT / "main.pdf"
+    DROP_DIR = BUILD_DIR / "drop"
 
 TITLE_RE = re.compile(r"\\begin\{problem\}\{((?:[^{}]|\{[^{}]*\})*)\}")
 IMPORT_RE = re.compile(
@@ -67,13 +89,20 @@ class ResolvedContestInput:
 
 
 
-def ensure_runtime_assets() -> None:
-    if not getattr(sys, "frozen", False):
-        return
-    bundle_dir = Path(getattr(sys, "_MEIPASS", ""))
+def ensure_templates() -> None:
+    """Materialise the bundled templates into the work root if they are missing.
+
+    In frozen builds the source is sys._MEIPASS; in a repo checkout it is the
+    repository itself, so a redirected work root gets a fresh copy while the
+    default work root already has everything in place.
+    """
+    if getattr(sys, "frozen", False):
+        source_dir = Path(getattr(sys, "_MEIPASS", ""))
+    else:
+        source_dir = app_root()
     for name in BUNDLED_ASSETS:
+        source = source_dir / name
         target = ROOT / name
-        source = bundle_dir / name
         if target.exists() or not source.exists():
             continue
         try:
@@ -83,9 +112,8 @@ def ensure_runtime_assets() -> None:
                 shutil.copy2(source, target)
         except OSError as exc:
             raise UserFacingError(
-                "Could not set up the runtime files next to the executable.\n\n"
-                f"Failed to copy {source} to {target}\n"
-                "Please make sure the folder containing the executable is writable."
+                "Could not set up the working directory for the build.\n\n"
+                f"Failed to copy {source} to {target}"
             ) from exc
 
 
@@ -242,7 +270,13 @@ def to_posix(path: Path) -> str:
 
 
 def make_wrapper(problem_dir: Path, statement_tex: Path) -> Path:
-    relative_statement = statement_tex.relative_to(ROOT)
+    try:
+        relative_statement = statement_tex.relative_to(ROOT)
+    except ValueError:
+        # Package on a different drive than the work root: fall back to an
+        # absolute path. Local PDF builds handle it fine, and the Overleaf
+        # export rewrites wrappers with relative paths anyway.
+        relative_statement = statement_tex
     wrapper_path = WRAPPERS_DIR / f"{problem_dir.name}.tex"
     wrapper_path.parent.mkdir(parents=True, exist_ok=True)
     asset_dir = ASSETS_DIR / problem_dir.name
@@ -481,8 +515,12 @@ def latex_unescape(text: str) -> str:
 
 
 
-def read_contest_info_values() -> dict[str, str]:
-    content = CONTEST_INFO_TEX.read_text(encoding="utf-8")
+def read_contest_info_values(path: Path | None = None) -> dict[str, str]:
+    content = (
+        Path(path).read_text(encoding="utf-8")
+        if path is not None
+        else CONTEST_INFO_TEX.read_text(encoding="utf-8")
+    )
     values: dict[str, str] = {}
     for macro in INFO_MACROS:
         match = re.search(rf"\\newcommand\{{\\{macro}\}}\{{([^}}]*)\}}", content)
@@ -601,7 +639,7 @@ def parse_args() -> tuple[str, str]:
 
 
 def prepare_build(package_name: str) -> BuildContext:
-    ensure_runtime_assets()
+    ensure_templates()
     resolved = resolve_contest_input(package_name)
     contest_root = resolved.contest_root
 

@@ -1,26 +1,46 @@
 from __future__ import annotations
 
+import json
+import os
 import queue
 import shutil
 import sys
+import tempfile
 import threading
 import traceback
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 
-from build import (
-    ROOT,
-    UserFacingError,
-    build_pdf,
-    cleanup_drop,
-    ensure_runtime_assets,
-    export_overleaf_bundle,
-    output_paths_for,
-    prepare_build,
-    read_contest_info_values,
-    set_contest_info,
-)
+import build
+from build import UserFacingError
+
+SETTINGS_DIR = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "ICPCStatementBuilder"
+SETTINGS_FILE = SETTINGS_DIR / "settings.json"
+
+
+
+def load_settings() -> dict:
+    try:
+        return json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+
+def save_settings(values: dict) -> None:
+    try:
+        SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
+        SETTINGS_FILE.write_text(json.dumps(values, ensure_ascii=False, indent=2), encoding="utf-8")
+    except OSError:
+        pass  # persistence is best-effort; never block a build over it
+
+
+
+def bundled_contest_info_path() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(getattr(sys, "_MEIPASS", "")) / "contest-info.tex"
+    return Path(build.app_root()) / "contest-info.tex"
 
 
 
@@ -32,7 +52,8 @@ class BuilderGUI:
         self.messages: queue.Queue[tuple[str, str]] = queue.Queue()
         self.worker: threading.Thread | None = None
 
-        current = read_contest_info_values()
+        settings = load_settings()
+        defaults = build.read_contest_info_values(bundled_contest_info_path())
 
         frame = ttk.Frame(self.window, padding=12)
         frame.grid(row=0, column=0, sticky="nsew")
@@ -57,21 +78,21 @@ class BuilderGUI:
 
         row += 1
         ttk.Label(frame, text="比赛名称：").grid(row=row, column=0, sticky="w")
-        self.name_var = tk.StringVar(value=current.get("ContestName", ""))
+        self.name_var = tk.StringVar(value=settings.get("name", defaults.get("ContestName", "")))
         ttk.Entry(frame, textvariable=self.name_var, width=56).grid(
             row=row, column=1, columnspan=3, sticky="we", padx=6, pady=(8, 0)
         )
 
         row += 1
         ttk.Label(frame, text="主办方：").grid(row=row, column=0, sticky="w")
-        self.organizer_var = tk.StringVar(value=current.get("ContestOrganizer", ""))
+        self.organizer_var = tk.StringVar(value=settings.get("organizer", defaults.get("ContestOrganizer", "")))
         ttk.Entry(frame, textvariable=self.organizer_var, width=56).grid(
             row=row, column=1, columnspan=3, sticky="we", padx=6, pady=(8, 0)
         )
 
         row += 1
         ttk.Label(frame, text="日期：").grid(row=row, column=0, sticky="w")
-        self.date_var = tk.StringVar(value=current.get("ContestDate", ""))
+        self.date_var = tk.StringVar(value=settings.get("date", defaults.get("ContestDate", "")))
         ttk.Entry(frame, textvariable=self.date_var, width=56).grid(
             row=row, column=1, columnspan=3, sticky="we", padx=6, pady=(8, 0)
         )
@@ -170,41 +191,43 @@ class BuilderGUI:
         self.worker.start()
 
     def run_build(self, job: dict) -> None:
+        # Everything happens inside a throwaway work directory: the exe's own
+        # folder stays completely clean, and outputs are delivered next to the
+        # selected contest package.
+        work = Path(tempfile.mkdtemp(prefix="icpc-statement-builder-"))
         try:
-            ensure_runtime_assets()
+            build.set_work_root(work)
+            build.ensure_templates()
+
             logo = job["logo"]
-            if logo:
-                target = ROOT / "pic" / ("logo" + Path(logo).suffix.lower())
-                target.parent.mkdir(parents=True, exist_ok=True)
-                if Path(logo).resolve() != target.resolve():
-                    shutil.copyfile(logo, target)
-                set_contest_info(logo_path=target.relative_to(ROOT))
-                self.post("log", f"logo 已设置为：{logo}")
+            target = work / "pic" / ("logo" + Path(logo).suffix.lower())
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if Path(logo).resolve() != target.resolve():
+                shutil.copyfile(logo, target)
+            build.set_contest_info(logo_path=target.relative_to(work))
+            self.post("log", f"logo 已设置为：{logo}")
 
-            fields = {
-                key: job[key]
-                for key in ("name", "organizer", "date")
-                if job[key]
-            }
-            if fields:
-                set_contest_info(**fields)
-                self.post("log", "比赛信息已写入 contest-info.tex")
+            build.set_contest_info(
+                name=job["name"],
+                organizer=job["organizer"],
+                date=job["date"],
+            )
+            save_settings({key: job[key] for key in ("name", "organizer", "date")})
 
-            build = prepare_build(job["package"])
-            self.post("log", f"已解析比赛包：{len(build.problems)} 道题")
+            build_ctx = build.prepare_build(job["package"])
+            self.post("log", f"已解析比赛包：{len(build_ctx.problems)} 道题")
 
-            # Deliver outputs next to the selected contest package.
-            pdf_target, overleaf_base = output_paths_for(Path(job["package"]))
+            pdf_target, overleaf_base = build.output_paths_for(Path(job["package"]))
             outputs = []
             if job["pdf"]:
                 self.post("log", "正在编译 PDF（两遍 XeLaTeX，可能需要一两分钟）…")
-                build_pdf(build)
-                shutil.move(str(ROOT / "main.pdf"), str(pdf_target))
+                build.build_pdf(build_ctx)
+                shutil.move(str(work / "main.pdf"), str(pdf_target))
                 outputs.append(f"PDF：{pdf_target}")
                 self.post("log", f"PDF 编译完成：{pdf_target}")
             if job["overleaf"]:
                 self.post("log", "正在导出 Overleaf 目录…")
-                bundle = export_overleaf_bundle(build, destination_dir=overleaf_base)
+                bundle = build.export_overleaf_bundle(build_ctx, destination_dir=overleaf_base)
                 outputs.append(f"Overleaf 目录：{bundle}")
                 self.post("log", f"Overleaf 导出完成：{bundle}")
 
@@ -217,7 +240,7 @@ class BuilderGUI:
         except Exception:
             self.post("failed", "发生未预期的错误：\n\n" + traceback.format_exc())
         finally:
-            cleanup_drop()
+            shutil.rmtree(work, ignore_errors=True)
 
     def post(self, kind: str, payload: str) -> None:
         self.messages.put((kind, payload))
@@ -247,9 +270,6 @@ def enable_high_dpi() -> None:
 
 
 def main() -> None:
-    # Unpack the bundled templates before anything reads contest-info.tex;
-    # on a frozen exe's very first run they do not exist next to the exe yet.
-    ensure_runtime_assets()
     enable_high_dpi()
     window = tk.Tk()
     try:
